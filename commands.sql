@@ -76,6 +76,8 @@ DECLARE
     column_names TEXT[];
     old_values TEXT[];
 BEGIN
+    ALTER TABLE info DISABLE TRIGGER info_backup_trigger;
+    
     SELECT MAX(backup_id) INTO max_backup_id FROM actions;
     revert_to_id := max_backup_id - steps_to_revert;
     DELETE FROM info;
@@ -91,9 +93,17 @@ BEGIN
                 EXECUTE 'DELETE FROM info WHERE ' || column_names[1] || ' = $1 AND ' || column_names[2] || ' = $2 AND ' || column_names[3] || ' = $3' USING old_values[1], old_values[2], old_values[3];
         END CASE;
     END LOOP;
+    
+    DELETE FROM actions WHERE backup_id > revert_to_id;
+    
+    ALTER TABLE info ENABLE TRIGGER info_backup_trigger;
+    
 END;
 $$ LANGUAGE plpgsql;
 SELECT * FROM actions;
 
-SELECT manual_backup(17);
+SELECT manual_backup(3);
+SELECT * FROM actions;
+SELECT manual_backup(1);
+SELECT * FROM actions;
 SELECT * FROM info;
