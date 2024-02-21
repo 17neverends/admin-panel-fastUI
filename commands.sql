@@ -93,6 +93,7 @@ BEGIN
     END LOOP;
 END;
 $$ LANGUAGE plpgsql;
+SELECT * FROM actions;
 
 SELECT manual_backup(17);
 SELECT * FROM info;
