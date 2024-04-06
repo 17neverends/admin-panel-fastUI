@@ -1,38 +1,21 @@
-from typing import Annotated
+from typing import Annotated, List
 from fastui.forms import fastui_form
 from fastapi import APIRouter
 from fastui import AnyComponent, FastUI
 from fastui import components as c
 from fastui.components.display import DisplayLookup
 from fastui.events import BackEvent, GoToEvent, PageEvent
-from pydantic import BaseModel, Field
 from config import user, password, db_name, host, port
 from psql import PSQL
 from shared import demo_page
+from models import User, getBackupStep, Actions
 
 
 psql = PSQL(db_name, user, password, host, port)
 router = APIRouter()
 
 
-class User(BaseModel):
-    id: str = Field(title="ID")
-    name: str = Field(title="Имя")
-    age: str = Field(title="Возраст")
-
-class getBackupStep(BaseModel):
-    steps: int = Field(title="Иногда для прыжка вперёд требуется отступить на два шага назад. — А иногда надо лишь иметь желание прыгнуть.")
-
-class Actions(BaseModel):
-    backup_id: str = Field(title="ID")
-    operation_type: str = Field(title="Тип операции")
-    column_name: str = Field(title="Поле")
-    old_value: str = Field(title="Прошлое значение")
-    new_value: str = Field(title="Новое значение")
-
-
-
-def fetch_users():
+def fetch_users() -> List[User]:
     query = "SELECT id, name, age FROM users;"
     psql.connect()
     data = psql.fetch_all(query=query)
@@ -40,7 +23,7 @@ def fetch_users():
     users = [User(id=row[0],name=row[1], age=row[2]) for row in data]
     return users
 
-def fetch_actions():
+def fetch_actions() -> List[Actions]:
     query = "SELECT backup_id, operation_type, column_name, old_value, new_value FROM actions;"
     psql.connect()
     data = psql.fetch_all(query=query)
@@ -56,7 +39,6 @@ def fetch_actions():
                          new_value=new_value)
         actions.append(action)
     return actions
-
 
 
 
@@ -102,6 +84,22 @@ def tabs() -> list[AnyComponent]:
     ]
 
 
+def info(title: str, body: str, actions: str, trigger: str) -> List[AnyComponent]:
+    return [
+        c.Modal(
+                    title=title,
+                    body=[c.Paragraph(text=body)],
+                    footer=[
+                        c.Button(text='Закрыть', on_click=GoToEvent(url=actions)),
+                    ],
+                    open_trigger=PageEvent(name=trigger),
+                ),
+    ]
+
+
+
+
+
 @router.get('/users', response_model=FastUI, response_model_exclude_none=True)
 def users_view() -> list[AnyComponent]:
     global users
@@ -115,18 +113,17 @@ def users_view() -> list[AnyComponent]:
                 DisplayLookup(field='id', on_click=GoToEvent(url='/table/users/{id}/')),
                 DisplayLookup(field='name'),
                 DisplayLookup(field='age'),
-            ],
+            ],  
         ),
         c.Button(text="Добавить пользователя", on_click=GoToEvent(url='/table/users/add')),
         c.Paragraph(text="     "),
-        c.Button(text='Modal Add', on_click=PageEvent(name='modal-form')),
+        c.Button(text='Модальное добавление', on_click=PageEvent(name='modal-form')),
         c.Modal(
             title='Добавление пользователя',
             body=[
                 c.Paragraph(text='Введите данные:'),
                 c.Form(
                 form_fields=[
-                    
                     c.FormFieldInput(name='id', title='ID'),
                     c.FormFieldInput(name='name', title='Имя'),
                     c.FormFieldInput(name='age', title='Возраст'),
@@ -143,7 +140,9 @@ def users_view() -> list[AnyComponent]:
                 c.Button(text='Принять', on_click=PageEvent(name='modal-form-submit')),
             ],
             open_trigger=PageEvent(name='modal-form'),
-        ),        
+        ),   
+        *info("Отчет о действии", "Пользователь успешно добавлен, результат добавлен в логи", '/table/actions', 'static-modal' ),
+        *info("Отчет о действии", "ID уже есть в БД, логи не изменились", '/table/actions', 'static-modal-error' ),
         title='Пользователи',
         
     )
@@ -165,9 +164,11 @@ def user_profile(id: int) -> list[AnyComponent]:
                 DisplayLookup(field='age'),
             ],
         ),
-        c.Button(text="Удалить пользователя", on_click=PageEvent(name="delete-user")),
-        c.Paragraph(text="     "),
+        *info("Отчет о действии", "Пользователь успешно добавлен, результат добавлен в логи", '/table/actions', 'static-modal' ),
+
         c.Button(text="Изменить данные", on_click=GoToEvent(url='/table/users/update')),
+        c.Paragraph(text="     "),
+        c.Button(text="Удалить пользователя", on_click=PageEvent(name="delete-user")),
         c.Form(
                     submit_url="/api/table/userdelete",
                     form_fields=[
@@ -191,7 +192,9 @@ def user_add() -> list[AnyComponent]:
         c.ModelForm(
             model=User,
             submit_url="/api/table/useradd"
-        )
+        ),
+        *info("Отчет о действии", "ID уже есть в БД, логи не изменились", '/table/users', 'static-modal' ),
+
     )
 
 @router.get("/users/update", response_model=FastUI, response_model_exclude_none=True)
@@ -199,39 +202,46 @@ def add_user_page():
     return [
         c.Page(
             components=[
-                c.Link(components=[c.Text(text='Назад')], on_click=BackEvent()),
                 c.Heading(text='Обновить данные', level=2),
+                c.Link(components=[c.Text(text='Назад')], on_click=BackEvent()),
                 c.ModelForm(
                     model=User,
                     submit_url="/api/table/userupdate"
-                )
+                ),
+                *info("Отчет о действии", "ID уже есть в БД, логи не изменились", '/table/users', 'static-modal' ),
+
             ]
         )
     ]
 
 
 @router.post("/useradd")
-def add_user(form: Annotated[User, fastui_form(User)]):
+def add_user(form: Annotated[User, fastui_form(User)]) -> list[AnyComponent]:
     psql.connect()
-    psql.execute_query("INSERT INTO users (id, name, age) VALUES (%s, %s, %s)", (form.id, form.name, form.age))
-    psql.disconnect()
-    return [c.FireEvent(event=GoToEvent(url='/table/users'))]
+
+    if psql.check_record_existence("users", "id", form.id):
+        psql.disconnect()  
+        return [c.FireEvent(event=PageEvent(name='static-modal'))]
+    else:
+        psql.execute_query("INSERT INTO users (id, name, age) VALUES (%s, %s, %s)", (form.id, form.name, form.age))
+        psql.disconnect() 
+        return [c.FireEvent(event=GoToEvent(url='/table/users'))]
 
 
 @router.post("/userupdate")
-def add_user(form: Annotated[User, fastui_form(User)]):
-    print(old_id)
+def add_user(form: Annotated[User, fastui_form(User)]) -> list[AnyComponent]:
     psql.connect()
-    try:
+    if psql.check_record_existence("users", "id", form.id):
+        psql.disconnect()  
+        return [c.FireEvent(event=PageEvent(name='static-modal'))]
+    else:
         psql.execute_query("UPDATE users SET id = %s, name = %s, age = %s WHERE id = %s", (form.id, form.name, form.age, str(old_id)))
-    except Exception as e:
-        print("Error executing query:", e)
-    psql.disconnect()
+        psql.disconnect()
     return [c.FireEvent(event=GoToEvent(url='/table/users'))]
 
 
 @router.post("/userdelete")
-def delete_user(form: Annotated[User, fastui_form(User)]):
+def delete_user(form: Annotated[User, fastui_form(User)]) -> list[AnyComponent]:
     psql.connect()
     psql.execute_query("DELETE FROM users WHERE id = %s", (form.id,))
     psql.disconnect()
@@ -239,7 +249,7 @@ def delete_user(form: Annotated[User, fastui_form(User)]):
 
 
 @router.get("/users/backup", response_model=FastUI, response_model_exclude_none=True)
-def add_user_page():
+def add_user_page() -> list[AnyComponent]:
     return [
         c.Page(
             components=[
@@ -255,20 +265,23 @@ def add_user_page():
 
 
 @router.post("/backup")
-def add_steps(form: Annotated[getBackupStep, fastui_form(getBackupStep)]):
+def add_steps(form: Annotated[getBackupStep, fastui_form(getBackupStep)]) -> list[AnyComponent]:
     psql.connect()
     psql.execute_query(f"SELECT manual_backup({form.steps})")
     psql.disconnect()
     return [c.FireEvent(event=GoToEvent(url='/table/users'))]
 
 
-
 @router.post('/modalform', response_model=FastUI, response_model_exclude_none=True)
-def modal_form_submit(form: Annotated[User, fastui_form(User)])  -> list[AnyComponent]:
+def modal_form_submit(form: Annotated[User, fastui_form(User)]) -> list[AnyComponent]:
     psql.connect()
-    psql.execute_query("INSERT INTO users (id, name, age) VALUES (%s, %s, %s)", (form.id, form.name, form.age))
-    psql.disconnect()
-    global users
-    users = fetch_users()
-    return [c.FireEvent(event=PageEvent(name='modal-form', clear=True)),
-            c.FireEvent(event=GoToEvent(url='/table/users'))]
+    if psql.check_record_existence("users", "id", form.id):
+        psql.disconnect()  
+        return [c.FireEvent(event=PageEvent(name='static-modal-error'))]
+    else:
+        psql.execute_query("INSERT INTO users (id, name, age) VALUES (%s, %s, %s)", (form.id, form.name, form.age))
+        psql.disconnect()
+        return [
+                c.FireEvent(event=PageEvent(name='modal-form', clear=True)),
+                c.FireEvent(event=PageEvent(name='static-modal'))
+            ]

@@ -11,7 +11,7 @@ def demo_page(*components: AnyComponent, title: str | None = None) -> list[AnyCo
             title_event=GoToEvent(url='/'),
             links=[
                 c.Link(
-                    components=[c.Text(text='Users')],
+                    components=[c.Text(text='Пользователи')],
                     on_click=GoToEvent(url='/table/users'),
                     active='startswith:/table',
                 )

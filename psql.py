@@ -27,13 +27,18 @@ class PSQL:
             self.cursor = None
             self.connection = None
 
-    def execute_query(self, query, params=None):
+    def execute_query(self, query: str, params: str = None):
         self.cursor.execute(query, params)
         self.connection.commit()
 
-    def fetch_all(self, query, params=None):
+    def fetch_all(self, query: str, params: str = None):
         self.cursor.execute(query, params)
         rows = self.cursor.fetchall()
         return rows
+    
+    def check_record_existence(self, table_name: str, field_name: str, value: str) -> bool:
+        query = f"SELECT 1 FROM {table_name} WHERE {field_name} = %s LIMIT 1"
+        self.cursor.execute(query, (value,))
+        return self.cursor.fetchone() is not None
 
 
