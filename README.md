@@ -18,8 +18,6 @@
 <br>
 ![image](https://github.com/17neverends/admin-panel-fastUI/assets/118381764/b09bcb83-50d0-449b-b7ee-480c17c1916e)
 <br>
-![image](https://github.com/17neverends/admin-panel-fastUI/assets/118381764/8d639313-5725-4696-aef8-2eb73a76c7f5)
-<br>
 ![image](https://github.com/17neverends/admin-panel-fastUI/assets/118381764/edb9b063-15ef-466c-97cb-309478620980)
 
 
