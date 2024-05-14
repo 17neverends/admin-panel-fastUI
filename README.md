@@ -3,10 +3,10 @@
 **Simple admin panel**
 
 **Actions**
-*Add new user
-*Delete user
-*Change user data
-*Get DB backup for N step back
+- Add new user
+- Delete user
+- Change user data
+- Get DB backup for N step back
 
 **Some views and actions:**
 
